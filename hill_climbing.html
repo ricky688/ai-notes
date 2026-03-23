@@ -3,51 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hill Climbing Simulator</title>
+    <title>Hill Climbing Simulator (Enhanced)</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            text-align: center;
-            background-color: #f8f9fa;
-            margin: 0;
-            padding: 20px;
-        }
-        canvas {
-            background-color: #ffffff;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-top: 15px;
-            max-width: 100%;
-        }
-        .controls {
-            margin-top: 15px;
-        }
-        button {
-            padding: 10px 18px;
-            font-size: 14px;
-            cursor: pointer;
-            margin: 0 8px;
-            border: none;
-            border-radius: 6px;
-            background-color: #0366d6;
-            color: white;
-            transition: background-color 0.2s;
-        }
-        button:hover {
-            background-color: #005cc5;
-        }
-        button:disabled {
-            background-color: #959da5;
-            cursor: not-allowed;
-        }
-        #status {
-            margin-top: 15px;
-            font-size: 16px;
-            font-weight: 600;
-            color: #24292e;
-            height: 24px;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; background-color: #f8f9fa; margin: 0; padding: 20px; }
+        canvas { background-color: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-top: 15px; max-width: 100%; }
+        .controls { margin-top: 15px; }
+        button { padding: 10px 18px; font-size: 14px; cursor: pointer; margin: 0 8px; border: none; border-radius: 6px; background-color: #0366d6; color: white; transition: background-color 0.2s; }
+        button:hover { background-color: #005cc5; }
+        button:disabled { background-color: #959da5; cursor: not-allowed; }
+        #status { margin-top: 15px; font-size: 16px; font-weight: 600; color: #24292e; height: 24px; }
     </style>
 </head>
 <body>
@@ -57,7 +21,7 @@
         <button id="startBtn" onclick="startAscent()">Start Ascent (開始攀登)</button>
     </div>
     <div id="status">準備就緒</div>
-    <canvas id="simCanvas" width="700" height="350"></canvas>
+    <canvas id="simCanvas" width="800" height="400"></canvas>
 
     <script>
         const canvas = document.getElementById('simCanvas');
@@ -65,35 +29,56 @@
         const statusDiv = document.getElementById('status');
         const startBtn = document.getElementById('startBtn');
 
-        // 定義地形函數 (Objective Function)
-        // 設計為擁有一個局部最大值 (左側) 與全域最大值 (右側)
+        // 新的地形函數：包含一個平坦的局部最大值、一個局部最大值、一個全域最大值
         function f(x) {
-            return Math.sin(x) + 0.6 * Math.sin(2.5 * x) + 0.3 * x;
+            // 平坦的局部最大值 (Flat local maximum)
+            if (x >= 0 && x < 2.5) return 1.5; 
+            
+            // 其他波形
+            return Math.sin(x) + 0.8 * Math.sin(2.5 * x) + 0.3 * x;
         }
 
-        // 函數的導數 (Gradient)，用於決定攀登方向
+        // 函數的導數 (Gradient)
         function df(x) {
-            return Math.cos(x) + 1.5 * Math.cos(2.5 * x) + 0.3;
+            // 在平坦區域，導數為 0
+            if (x >= 0 && x < 2.5) return 0; 
+            return Math.cos(x) + 2.0 * Math.cos(2.5 * x) + 0.3;
         }
 
         const xMin = 0;
-        const xMax = 6;
+        const xMax = 6.5; // 稍微擴大範圍
         let agentX = 0;
         let isAnimating = false;
         let animationId;
 
-        // 座標轉換 (將數學座標轉為 Canvas 像素)
+        // 座標轉換
         function mapX(x) { return (x / xMax) * canvas.width; }
-        function mapY(y) { 
-            // 翻轉 Y 軸並縮放
-            return canvas.height - ((y + 1.5) / 5) * canvas.height; 
+        function mapY(y) { return canvas.height - ((y + 1.5) / 5) * canvas.height; }
+
+        function drawLabels() {
+            ctx.font = "bold 14px sans-serif";
+            ctx.textBaseline = "middle";
+
+            // 1. 全域最大值 (Global Maximum) - 右側最高點
+            let globalX = 5.9; 
+            ctx.fillStyle = "#28a745"; // 綠色
+            ctx.fillText("Global Maximum (全域最大值)", mapX(globalX) - 160, mapY(f(globalX)) - 25);
+
+            // 2. 局部最大值 (Local Maximum) - 中間次高點
+            let localX = 3.3; 
+            ctx.fillStyle = "#d73a49"; // 紅色
+            ctx.fillText("Local Maximum (局部最大值)", mapX(localX) - 100, mapY(f(localX)) - 25);
+
+            // 3. 平坦局部最大值 (Flat local maximum) - 左側
+            ctx.fillStyle = "#6f42c1"; // 紫色
+            ctx.fillText("Flat local maximum (平坦局部最大值)", mapX(1.25) - 120, mapY(1.5) - 25);
         }
 
         function drawTerrain() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.beginPath();
-            ctx.strokeStyle = '#28a745';
-            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#e1e4e8'; // 背景地形線
+            ctx.lineWidth = 2;
             
             for (let px = 0; px <= canvas.width; px++) {
                 let x = (px / canvas.width) * xMax;
@@ -102,6 +87,20 @@
                 else ctx.lineTo(px, mapY(y));
             }
             ctx.stroke();
+
+            // 繪製強化的地形實體線
+            ctx.beginPath();
+            ctx.strokeStyle = '#24292e'; 
+            ctx.lineWidth = 4;
+            for (let px = 0; px <= canvas.width; px++) {
+                let x = (px / canvas.width) * xMax;
+                let y = f(x);
+                if (px === 0) ctx.moveTo(px, mapY(y));
+                else ctx.lineTo(px, mapY(y));
+            }
+            ctx.stroke();
+
+            drawLabels(); // 繪製標註
         }
 
         function drawAgent() {
@@ -109,11 +108,11 @@
             let py = mapY(f(agentX));
             
             ctx.beginPath();
-            ctx.arc(px, py, 8, 0, Math.PI * 2);
-            ctx.fillStyle = '#d73a49';
+            ctx.arc(px, py, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#0366d6'; // 代理人顏色
             ctx.fill();
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
             ctx.stroke();
         }
 
@@ -127,8 +126,8 @@
             isAnimating = false;
             startBtn.disabled = false;
             
-            // 隨機生成 0.5 到 5.5 之間的起點
-            agentX = 0.5 + Math.random() * 5;
+            // 隨機起點 (包含平坦區域)
+            agentX = 0.2 + Math.random() * 6; 
             statusDiv.innerText = "已隨機放置起點，準備攀登！";
             statusDiv.style.color = "#24292e";
             updateFrame();
@@ -141,26 +140,33 @@
             statusDiv.innerText = "攀登中... (Gradient Ascent)";
             statusDiv.style.color = "#0366d6";
             
-            const learningRate = 0.05; // 步長 (Step size)
-            
+            const learningRate = 0.05; // 步長
+            let stepCount = 0;
+            const maxSteps = 200; // 安全機制
+
             function step() {
                 let gradient = df(agentX);
+                stepCount++;
                 
-                // 如果梯度接近 0，代表到達頂峰
-                if (Math.abs(gradient) < 0.01) {
+                // 停止條件：梯度接近 0 或達到最大步數
+                if (Math.abs(gradient) < 0.01 || stepCount >= maxSteps) {
                     isAnimating = false;
-                    // 根據 X 座標判斷是局部還是全域最大值
-                    if (agentX < 3) {
-                        statusDiv.innerText = "🚩 卡在局部最大值 (Stuck in Local Maximum)";
+                    
+                    // 根據位置判斷停在哪裡
+                    if (agentX < 2.5) {
+                        statusDiv.innerText = "🚩 卡在平坦局部最大值 (Flat Local Max)";
+                        statusDiv.style.color = "#6f42c1";
+                    } else if (agentX < 4.5) {
+                        statusDiv.innerText = "🚩 卡在局部最大值 (Local Max)";
                         statusDiv.style.color = "#d73a49";
                     } else {
-                        statusDiv.innerText = "🏆 抵達全域最大值 (Global Maximum Reached!)";
+                        statusDiv.innerText = "🏆 抵達全域最大值 (Global Max)!";
                         statusDiv.style.color = "#28a745";
                     }
                     return;
                 }
 
-                // 更新位置：朝著梯度的方向前進
+                // 更新位置
                 agentX += gradient * learningRate;
                 
                 // 邊界限制
