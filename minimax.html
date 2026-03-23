@@ -10,6 +10,7 @@
             background-color: #f4f7f6; 
             padding: 20px; 
             margin: 0;
+            position: relative;
         }
         h3 {
             color: #333;
@@ -19,6 +20,25 @@
             color: #666;
             font-size: 14px;
             margin-bottom: 20px;
+        }
+        /* 右上角結果框 (Result Box) */
+        #result-box {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+        .result-highlight {
+            background: #b91c1c !important; /* 算完後變成紅色強調 */
+            transform: scale(1.05);
         }
         #tree-container { 
             position: relative; 
@@ -43,7 +63,6 @@
         line { 
             stroke: #cbd5e1; 
             stroke-width: 3; 
-            transition: stroke 0.3s;
         }
         .node { 
             position: absolute; 
@@ -98,25 +117,29 @@
             -webkit-appearance: none;
             margin: 0;
         }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
         .btn { 
-            margin-top: 20px; 
             padding: 12px 24px; 
             font-size: 16px; 
             font-weight: bold;
             cursor: pointer; 
-            background-color: #10b981; 
             color: white; 
             border: none; 
             border-radius: 8px; 
-            box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
             transition: background-color 0.2s, transform 0.1s;
         }
-        .btn:hover { 
-            background-color: #059669; 
-        }
-        .btn:active {
-            transform: scale(0.98);
-        }
+        .btn-run { background-color: #10b981; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2); }
+        .btn-run:hover { background-color: #059669; }
+        
+        .btn-random { background-color: #f59e0b; box-shadow: 0 4px 6px rgba(245, 158, 11, 0.2); }
+        .btn-random:hover { background-color: #d97706; }
+
+        .btn:active { transform: scale(0.96); }
         .highlight { 
             box-shadow: 0 0 0 6px rgba(234, 179, 8, 0.4); 
             transform: translate(-50%, -50%) scale(1.15); 
@@ -125,30 +148,28 @@
 </head>
 <body>
 
+    <div id="result-box">最終結果 (MAX): <span id="final-max">-</span></div>
+
     <h3>極小化極大演算法 (Minimax Algorithm)</h3>
-    <p>修改底層終端節點 (Terminal Nodes) 的數值，觀察最佳決策如何向上傳遞。</p>
+    <p>修改底層終端節點 (Terminal Nodes) 或隨機生成數值，觀察最佳決策如何向上傳遞。</p>
     
     <div id="tree-container">
         <svg>
             <line x1="50%" y1="15%" x2="20%" y2="50%" />
             <line x1="50%" y1="15%" x2="50%" y2="50%" />
             <line x1="50%" y1="15%" x2="80%" y2="50%" />
-            
             <line x1="20%" y1="50%" x2="10%" y2="85%" />
             <line x1="20%" y1="50%" x2="20%" y2="85%" />
             <line x1="20%" y1="50%" x2="30%" y2="85%" />
-            
             <line x1="50%" y1="50%" x2="40%" y2="85%" />
             <line x1="50%" y1="50%" x2="50%" y2="85%" />
             <line x1="50%" y1="50%" x2="60%" y2="85%" />
-            
             <line x1="80%" y1="50%" x2="70%" y2="85%" />
             <line x1="80%" y1="50%" x2="80%" y2="85%" />
             <line x1="80%" y1="50%" x2="90%" y2="85%" />
         </svg>
 
         <div id="max-root" class="node max-node">MAX</div>
-
         <div id="min-1" class="node min-node" style="left: 20%;">MIN</div>
         <div id="min-2" class="node min-node" style="left: 50%;">MIN</div>
         <div id="min-3" class="node min-node" style="left: 80%;">MIN</div>
@@ -156,21 +177,42 @@
         <div class="node leaf-node" style="left: 10%;"><input type="number" id="t1" value="3"></div>
         <div class="node leaf-node" style="left: 20%;"><input type="number" id="t2" value="12"></div>
         <div class="node leaf-node" style="left: 30%;"><input type="number" id="t3" value="8"></div>
-        
         <div class="node leaf-node" style="left: 40%;"><input type="number" id="t4" value="2"></div>
         <div class="node leaf-node" style="left: 50%;"><input type="number" id="t5" value="4"></div>
         <div class="node leaf-node" style="left: 60%;"><input type="number" id="t6" value="6"></div>
-        
         <div class="node leaf-node" style="left: 70%;"><input type="number" id="t7" value="14"></div>
         <div class="node leaf-node" style="left: 80%;"><input type="number" id="t8" value="5"></div>
         <div class="node leaf-node" style="left: 90%;"><input type="number" id="t9" value="2"></div>
     </div>
 
-    <button class="btn" onclick="calculateMinimax()">執行計算 (Run Minimax)</button>
+    <div class="controls">
+        <button class="btn btn-random" onclick="randomizeValues()">隨機數值 (Randomize)</button>
+        <button class="btn btn-run" onclick="calculateMinimax()">執行計算 (Run Minimax)</button>
+    </div>
 
     <script>
+        function resetUI() {
+            // 清除所有的 highlight 特效與結果
+            document.querySelectorAll('.node').forEach(n => n.classList.remove('highlight'));
+            document.getElementById('result-box').classList.remove('result-highlight');
+            document.getElementById('max-root').innerText = 'MAX';
+            document.getElementById('min-1').innerText = 'MIN';
+            document.getElementById('min-2').innerText = 'MIN';
+            document.getElementById('min-3').innerText = 'MIN';
+            document.getElementById('final-max').innerText = '-';
+        }
+
+        function randomizeValues() {
+            resetUI();
+            // 隨機生成 1 到 20 之間的數字
+            for(let i = 1; i <= 9; i++) {
+                document.getElementById('t' + i).value = Math.floor(Math.random() * 20) + 1;
+            }
+        }
+
         function calculateMinimax() {
-            // 讀取底層輸入框數值
+            resetUI();
+            
             const getVal = (id) => parseInt(document.getElementById(id).value) || 0;
             const leaves = [
                 [getVal('t1'), getVal('t2'), getVal('t3')],
@@ -178,14 +220,7 @@
                 [getVal('t7'), getVal('t8'), getVal('t9')]
             ];
 
-            // 重置 UI 狀態
-            document.querySelectorAll('.node').forEach(n => n.classList.remove('highlight'));
-            document.getElementById('max-root').innerText = 'MAX';
-            document.getElementById('min-1').innerText = 'MIN';
-            document.getElementById('min-2').innerText = 'MIN';
-            document.getElementById('min-3').innerText = 'MIN';
-
-            // 步驟 1：延遲執行 MIN 層計算，營造運算動態感
+            // 步驟 1：計算 MIN 層
             setTimeout(() => {
                 const minVals = leaves.map(group => Math.min(...group));
                 
@@ -193,21 +228,23 @@
                 document.getElementById('min-2').innerText = minVals[1];
                 document.getElementById('min-3').innerText = minVals[2];
                 
-                // 加入強調特效
                 document.getElementById('min-1').classList.add('highlight');
                 document.getElementById('min-2').classList.add('highlight');
                 document.getElementById('min-3').classList.add('highlight');
 
-                // 步驟 2：再延遲執行 MAX 層計算
+                // 步驟 2：計算 MAX 層並更新結果框
                 setTimeout(() => {
                     const maxVal = Math.max(...minVals);
                     document.getElementById('max-root').innerText = maxVal;
                     
-                    // 切換特效至 MAX 節點
                     document.getElementById('max-root').classList.add('highlight');
                     document.getElementById('min-1').classList.remove('highlight');
                     document.getElementById('min-2').classList.remove('highlight');
                     document.getElementById('min-3').classList.remove('highlight');
+
+                    // 更新右上角 Result Box
+                    document.getElementById('final-max').innerText = maxVal;
+                    document.getElementById('result-box').classList.add('result-highlight');
                 }, 1000);
             }, 600);
         }
