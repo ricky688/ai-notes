@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A* Search Simulator</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; background-color: #f8f9fa; margin: 0; padding: 20px; color: #24292e; }
+        canvas { background-color: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-top: 15px; max-width: 100%; }
+        .controls { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
+        button { padding: 10px 18px; font-size: 14px; cursor: pointer; border: none; border-radius: 6px; background-color: #6f42c1; color: white; font-weight: bold; transition: background-color 0.2s; }
+        button:hover { background-color: #5a32a3; }
+        button:disabled { background-color: #959da5; cursor: not-allowed; }
+        .dashboard { margin-top: 15px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .queue-container { display: flex; align-items: center; gap: 10px; background: #fff; padding: 10px 20px; border-radius: 8px; border: 1px solid #ddd; min-height: 40px; min-width: 300px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .queue-title { font-weight: bold; color: #586069; margin-right: 10px; }
+        .queue-item { background-color: #f3f0ff; color: #6f42c1; border: 1px solid #6f42c1; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 5px; }
+        .queue-item.active { background-color: #d73a49; color: white; border-color: #d73a49; }
+        #statusBox { background: #f3f0ff; color: #44287d; padding: 10px 20px; border-radius: 6px; font-weight: bold; max-width: 650px; border: 1px solid #6f42c1; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button id="resetBtn" onclick="init()">重置 (Reset)</button>
+        <button id="stepBtn" onclick="nextStep()">下一步 (Next Step)</button>
+    </div>
+    
+    <div class="dashboard">
+        <div class="queue-container">
+            <span class="queue-title">Priority Queue (按 f = g + h 排序):</span>
+            <div id="queueDisplay" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
+        </div>
+        <div id="statusBox">點擊「下一步」開始 A* 搜尋</div>
+    </div>
+
+    <canvas id="graphCanvas" width="800" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d');
+        const stepBtn = document.getElementById('stepBtn');
+        const queueDisplay = document.getElementById('queueDisplay');
+        const statusBox = document.getElementById('statusBox');
+
+        // 定義 A* 專用地圖 (包含節點、啟發值 h、邊的真實成本 g)
+        const graph = {
+            'S': { x: 150, y: 200, h: 10, edges: [{to: 'A', cost: 10}, {to: 'B', cost: 1}] },
+            'A': { x: 400, y: 100, h: 2,  edges: [{to: 'G', cost: 2}] },
+            'B': { x: 400, y: 300, h: 6,  edges: [{to: 'G', cost: 7}] },
+            'G': { x: 650, y: 200, h: 0,  edges: [] }
+        };
+
+        let queue = [];
+        let expanded = new Set();
+        let currentItem = null;
+        let isFinished = false;
+
+        function init() {
+            // 佇列裡儲存：當前節點 id、累積成本 g、總預估成本 f、歷史路徑
+            queue = [{ id: 'S', g: 0, f: graph['S'].h, path: ['S'] }];
+            expanded = new Set();
+            currentItem = null;
+            isFinished = false;
+            stepBtn.disabled = false;
+            statusBox.innerHTML = "初始狀態：起點 S 放入佇列。<br>計算：g=0, h=10 ➔ <b>f=10</b>";
+            statusBox.style.background = "#f3f0ff";
+            statusBox.style.color = "#44287d";
+            updateUI();
+        }
+
+        function nextStep() {
+            if (isFinished || queue.length === 0) return;
+
+            // 1. 從 Priority Queue 中取出 f 最小的節點
+            currentItem = queue.shift();
+            let nodeId = currentItem.id;
+            
+            if (nodeId === 'G') {
+                isFinished = true;
+                stepBtn.disabled = true;
+                expanded.add('G');
+                statusBox.innerHTML = `🏆 抵達目標 G！搜尋結束。<br>最佳路徑：${currentItem.path.join(' ➔ ')} (總成本: ${currentItem.g})`;
+                statusBox.style.background = "#d4edda";
+                statusBox.style.color = "#155724";
+                updateUI();
+                return;
+            }
+
+            // 2. 展開節點
+            expanded.add(nodeId);
+            let edges = graph[nodeId].edges;
+            let addedInfo = [];
+
+            edges.forEach(edge => {
+                let neighbor = edge.to;
+                let stepCost = edge.cost;
+                
+                let newG = currentItem.g + stepCost;
+                let newH = graph[neighbor].h;
+                let newF = newG + newH;
+                let newPath = [...currentItem.path, neighbor];
+
+                queue.push({ id: neighbor, g: newG, f: newF, path: newPath });
+                addedInfo.push(`${neighbor}(g=${newG}+h=${newH} ➔ f=${newF})`);
+            });
+
+            // 3. 重新排序佇列 (A* 核心：永遠挑選 f 最小的)
+            queue.sort((a, b) => a.f - b.f);
+
+            // 更新狀態文字
+            if (addedInfo.length > 0) {
+                statusBox.innerHTML = `展開 <b>${nodeId}</b>，發現鄰居：<br>${addedInfo.join(' , ')}<br>佇列已按 <b>f 值</b> 重新排序。`;
+                
+                // 針對陷阱圖的特殊解說
+                if (nodeId === 'S') {
+                    statusBox.innerHTML += "<br><i>💡 注意：雖然 A 的 h=2 看起來很近，但 B 的整體 f 值 (7) 比較小，所以下一步會選 B！</i>";
+                }
+            } else {
+                statusBox.innerHTML = `展開 <b>${nodeId}</b>，但沒有新的鄰居。`;
+            }
+            
+            updateUI();
+        }
+
+        // --- 視覺化繪製函數 ---
+        function updateUI() {
+            drawGraph();
+            updateQueueDisplay();
+        }
+
+        function updateQueueDisplay() {
+            queueDisplay.innerHTML = "";
+            if (currentItem && !isFinished) {
+                let activeBadge = document.createElement('span');
+                activeBadge.className = 'queue-item active';
+                activeBadge.innerText = `展開: ${currentItem.id}(f=${currentItem.f})`;
+                queueDisplay.appendChild(activeBadge);
+            }
+            queue.forEach(item => {
+                let badge = document.createElement('span');
+                badge.className = 'queue-item';
+                badge.innerText = `${item.id}(f=${item.f})`;
+                queueDisplay.appendChild(badge);
+            });
+        }
+
+        function drawGraph() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 繪製邊與成本
+            ctx.lineWidth = 2;
+            for (let id in graph) {
+                let node = graph[id];
+                node.edges.forEach(edge => {
+                    let neighbor = graph[edge.to];
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(node.x, node.y);
+                    ctx.lineTo(neighbor.x, neighbor.y);
+                    
+                    // 判斷是否為當前路徑的邊
+                    let isCurrentPath = false;
+                    if (currentItem) {
+                        let path = currentItem.path;
+                        let idx1 = path.indexOf(id);
+                        let idx2 = path.indexOf(edge.to);
+                        if (idx1 !== -1 && idx2 !== -1 && idx2 === idx1 + 1) {
+                            isCurrentPath = true;
+                        }
+                    }
+
+                    if (isCurrentPath) {
+                        ctx.strokeStyle = '#d73a49'; // 正在探索的路徑 (紅色)
+                        ctx.lineWidth = 4;
+                    } else if (expanded.has(id) && expanded.has(edge.to)) {
+                        ctx.strokeStyle = '#6f42c1'; // 已確認的路徑 (紫色)
+                        ctx.lineWidth = 3;
+                    } else {
+                        ctx.strokeStyle = '#e1e4e8'; // 未探索
+                        ctx.lineWidth = 2;
+                    }
+                    ctx.stroke();
+
+                    // 繪製路徑真實成本 (g) 的文字標籤
+                    let midX = (node.x + neighbor.x) / 2;
+                    let midY = (node.y + neighbor.y) / 2;
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(midX - 20, midY - 10, 40, 20);
+                    ctx.fillStyle = '#d73a49';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`g=${edge.cost}`, midX, midY);
+                });
+            }
+
+            // 繪製節點
+            for (let id in graph) {
+                let node = graph[id];
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 25, 0, Math.PI * 2);
+
+                if (id === 'G' && expanded.has('G')) {
+                    ctx.fillStyle = '#28a745'; // 目標 (綠色)
+                    ctx.strokeStyle = '#1e7e34';
+                } else if (currentItem && currentItem.id === id && !isFinished) {
+                    ctx.fillStyle = '#ffc107'; // 正在展開 (黃色)
+                    ctx.strokeStyle = '#d39e00';
+                } else if (expanded.has(id)) {
+                    ctx.fillStyle = '#f3f0ff'; // 已展開 (淺紫)
+                    ctx.strokeStyle = '#6f42c1';
+                } else {
+                    ctx.fillStyle = '#fafafa'; // 未發現 (灰白)
+                    ctx.strokeStyle = '#9e9e9e';
+                }
+
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 節點文字 (ID)
+                ctx.fillStyle = '#24292e';
+                ctx.font = 'bold 18px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(id, node.x, node.y - 6);
+                
+                // 啟發值 (h) 標籤
+                ctx.font = '12px Arial';
+                ctx.fillStyle = '#586069';
+                ctx.fillText(`h=${node.h}`, node.x, node.y + 12);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
