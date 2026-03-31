@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saddle Point Visualization</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #ffffff; 
+            overflow: hidden;
+        }
+        #plot-container { 
+            width: 100vw; 
+            height: 100vh; 
+        }
+    </style>
+</head>
+<body>
+    <div id="plot-container"></div>
+    <script>
+        // 產生 X 和 Y 的網格數據 (Grid data)
+        let z_data = [];
+        let x_data = [];
+        let y_data = [];
+        let gridSize = 20;
+        let step = 0.1;
+
+        for (let i = -gridSize; i <= gridSize; i++) {
+            let y = i * step;
+            y_data.push(y);
+            let z_row = [];
+            for (let j = -gridSize; j <= gridSize; j++) {
+                let x = j * step;
+                if (i === -gridSize) {
+                    x_data.push(x);
+                }
+                // 鞍點的標準方程式: z = x^2 - y^2
+                z_row.push((x * x) - (y * y));
+            }
+            z_data.push(z_row);
+        }
+
+        // 建立 3D 曲面 (3D Surface)
+        let surface = {
+            z: z_data,
+            x: x_data,
+            y: y_data,
+            type: 'surface',
+            colorscale: 'Viridis',
+            showscale: false,
+            opacity: 0.8
+        };
+
+        // 標示中心的鞍點 (Saddle Point)
+        let centerPoint = {
+            x: [0],
+            y: [0],
+            z: [0],
+            mode: 'markers',
+            type: 'scatter3d',
+            marker: {
+                color: 'red',
+                size: 8,
+                symbol: 'circle'
+            },
+            name: 'Saddle Point'
+        };
+
+        // 設定圖表排版與視角 (Layout and Camera angle)
+        let layout = {
+            title: 'Saddle Point (鞍點) Visualization',
+            margin: { l: 0, r: 0, b: 0, t: 40 },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            scene: {
+                xaxis: {title: 'X (Row Player Strategy)'},
+                yaxis: {title: 'Y (Column Player Strategy)'},
+                zaxis: {title: 'Z (Payoff / Gains & Losses)'},
+                camera: {
+                    eye: {x: 1.5, y: 1.5, z: 1.2}
+                }
+            }
+        };
+
+        // 渲染圖表
+        Plotly.newPlot('plot-container', [surface, centerPoint], layout);
+    </script>
+</body>
+</html>
