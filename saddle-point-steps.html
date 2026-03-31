@@ -1,0 +1,249 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saddle Point Step-by-Step</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        .instruction-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 15px;
+            min-height: 48px;
+            line-height: 1.5;
+            transition: all 0.3s ease;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 12px;
+            transition: all 0.3s ease;
+        }
+        th {
+            background-color: #f0f0f0;
+            font-weight: 600;
+        }
+        .header-lisa { background-color: #e2f0d9; }
+        .header-henry { background-color: #fff2cc; }
+        
+        /* 狀態樣式 */
+        .hidden-cell { opacity: 0; pointer-events: none; }
+        .highlight-min { background-color: #ffcccc !important; font-weight: bold; }
+        .highlight-max { background-color: #cce5ff !important; font-weight: bold; }
+        .highlight-target { 
+            background-color: #ff9900 !important; 
+            color: white; 
+            font-weight: bold; 
+            transform: scale(1.1);
+            box-shadow: 0 0 8px rgba(255,153,0,0.6);
+        }
+        .highlight-saddle {
+            background-color: #2ecc71 !important;
+            color: white;
+            font-weight: bold;
+            transform: scale(1.1);
+            box-shadow: 0 0 12px rgba(46,204,113,0.8);
+            border: 2px solid #27ae60;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover:not(:disabled) { background-color: #2980b9; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .step-counter { font-weight: bold; margin-bottom: 10px; text-align: center; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>博弈論：尋找鞍點 (Saddle Point)</h2>
+    <div class="step-counter" id="step-counter">Step 0 / 5</div>
+    <div class="instruction-box" id="instruction"></div>
+
+    <table id="game-table">
+        <thead>
+            <tr>
+                <th colspan="2" rowspan="2"></th>
+                <th colspan="3" class="header-lisa">Lisa (Highways)</th>
+                <th rowspan="2" id="header-row-min" class="hidden-cell" style="background-color: #fce4d6;">Row Minima</th>
+            </tr>
+            <tr>
+                <th class="header-lisa">1</th>
+                <th class="header-lisa">2</th>
+                <th class="header-lisa">3</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <th rowspan="3" class="header-henry">Henry<br>(Routes)</th>
+                <th class="header-henry">A</th>
+                <td id="cell-A1">10</td>
+                <td id="cell-A2">4</td>
+                <td id="cell-A3">6</td>
+                <td id="rm-A" class="hidden-cell">4</td>
+            </tr>
+            <tr>
+                <th class="header-henry">B</th>
+                <td id="cell-B1">6</td>
+                <td id="cell-B2">5</td>
+                <td id="cell-B3">9</td>
+                <td id="rm-B" class="hidden-cell">5</td>
+            </tr>
+            <tr>
+                <th class="header-henry">C</th>
+                <td id="cell-C1">2</td>
+                <td id="cell-C2">3</td>
+                <td id="cell-C3">7</td>
+                <td id="rm-C" class="hidden-cell">2</td>
+            </tr>
+        </tbody>
+        <tfoot id="footer-col-max" class="hidden-cell">
+            <tr>
+                <th colspan="2" style="background-color: #ddebf7;">Column Maxima</th>
+                <td id="cm-1">10</td>
+                <td id="cm-2">5</td>
+                <td id="cm-3">9</td>
+                <td style="background-color: transparent; border:none;"></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="controls">
+        <button id="btn-prev" onclick="changeStep(-1)" disabled>⬅ 上一步</button>
+        <button id="btn-next" onclick="changeStep(1)">下一步 ➡</button>
+    </div>
+</div>
+
+<script>
+    const descriptions = [
+        "這是初始的收益矩陣。數字代表不同路線與公路組合下的海拔高度。Henry 希望高度越高越好，Lisa 希望高度越低越好。",
+        "<b>步驟一：尋找 Row Minima</b><br>Henry 計算他選擇每條路線時的「最壞情況」。路線 A 最低是 4，路線 B 最低是 5，路線 C 最低是 2。",
+        "<b>步驟二：尋找 Column Maxima</b><br>Lisa 計算她選擇每條公路時的「最壞情況」。公路 1 最高是 10，公路 2 最高是 5，公路 3 最高是 9。",
+        "<b>步驟三：決定 Maxi-mini 策略</b><br>Henry 在所有的最壞情況 (4, 5, 2) 中，挑選一個對他最有利的<b>最大值</b>，也就是 5 (路線 B)。",
+        "<b>步驟四：決定 Mini-maxi 策略</b><br>Lisa 在所有的最壞情況 (10, 5, 9) 中，挑選一個對她最有利的<b>最小值</b>，也就是 5 (公路 2)。",
+        "<b>步驟五：確認鞍點 (Saddle Point)</b><br>Maxi-mini (5) 剛好等於 Mini-maxi (5)！雙方策略的交集點（路線 B，公路 2）即為此賽局的鞍點，也是最穩定的解。"
+    ];
+
+    let currentStep = 0;
+
+    function resetStyles() {
+        // 清除所有標記與隱藏元素
+        document.querySelectorAll('td').forEach(td => {
+            td.classList.remove('highlight-min', 'highlight-max', 'highlight-target', 'highlight-saddle');
+        });
+        document.getElementById('header-row-min').classList.add('hidden-cell');
+        document.getElementById('rm-A').classList.add('hidden-cell');
+        document.getElementById('rm-B').classList.add('hidden-cell');
+        document.getElementById('rm-C').classList.add('hidden-cell');
+        document.getElementById('footer-col-max').classList.add('hidden-cell');
+    }
+
+    function renderStep() {
+        resetStyles();
+        
+        // Step 1: 顯示 Row Minima
+        if (currentStep >= 1) {
+            document.getElementById('header-row-min').classList.remove('hidden-cell');
+            document.getElementById('rm-A').classList.remove('hidden-cell');
+            document.getElementById('rm-B').classList.remove('hidden-cell');
+            document.getElementById('rm-C').classList.remove('hidden-cell');
+            if(currentStep === 1) {
+                document.getElementById('cell-A2').classList.add('highlight-min');
+                document.getElementById('cell-B2').classList.add('highlight-min');
+                document.getElementById('cell-C1').classList.add('highlight-min');
+            }
+        }
+
+        // Step 2: 顯示 Column Maxima
+        if (currentStep >= 2) {
+            document.getElementById('footer-col-max').classList.remove('hidden-cell');
+            if(currentStep === 2) {
+                document.getElementById('cell-A1').classList.add('highlight-max');
+                document.getElementById('cell-B3').classList.add('highlight-max');
+                document.getElementById('cell-B2').classList.add('highlight-max');
+            }
+        }
+
+        // Step 3: 標記 Maxi-mini
+        if (currentStep >= 3) {
+            document.getElementById('rm-B').classList.add('highlight-target');
+        }
+
+        // Step 4: 標記 Mini-maxi
+        if (currentStep >= 4) {
+            document.getElementById('cm-2').classList.add('highlight-target');
+        }
+
+        // Step 5: 標記鞍點
+        if (currentStep === 5) {
+            document.getElementById('cell-B2').classList.add('highlight-saddle');
+            document.getElementById('rm-B').classList.remove('highlight-target');
+            document.getElementById('cm-2').classList.remove('highlight-target');
+        }
+
+        // 更新文字與按鈕狀態
+        document.getElementById('instruction').innerHTML = descriptions[currentStep];
+        document.getElementById('step-counter').innerText = `Step ${currentStep} / 5`;
+        document.getElementById('btn-prev').disabled = currentStep === 0;
+        document.getElementById('btn-next').disabled = currentStep === 5;
+    }
+
+    function changeStep(delta) {
+        currentStep += delta;
+        if (currentStep < 0) currentStep = 0;
+        if (currentStep > 5) currentStep = 5;
+        renderStep();
+    }
+
+    // 初始化
+    renderStep();
+</script>
+
+</body>
+</html>
