@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>囚徒困境互動模擬</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 25px 35px;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+            max-width: 650px;
+            width: 100%;
+        }
+        h2 { text-align: center; color: #2c3e50; margin-top: 0; }
+        .intro { text-align: center; font-size: 14px; color: #7f8c8d; margin-bottom: 20px; }
+        
+        /* 收益矩陣樣式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            text-align: center;
+            background-color: #fff;
+        }
+        th, td { border: 2px solid #ecf0f1; padding: 15px; font-size: 15px; transition: all 0.3s; }
+        th { background-color: #f8f9fa; font-weight: bold; color: #34495e; }
+        .you-header { background-color: #e8f4f8; }
+        .opp-header { background-color: #fce4d6; }
+        .payoff { font-size: 18px; font-weight: bold; color: #555; }
+        
+        /* 高亮效果 */
+        .highlight-cell {
+            background-color: #ffeaa7 !important;
+            transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(253, 203, 110, 0.6);
+            border: 2px solid #fdcb6e;
+            color: #d35400;
+        }
+
+        /* 控制面板 */
+        .controls { display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px; }
+        .strategy-selector { display: flex; justify-content: space-between; align-items: center; background: #fdfbf7; padding: 10px 15px; border-radius: 8px; border: 1px solid #e1d8c1; }
+        select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; }
+        .action-btns { display: flex; justify-content: center; gap: 20px; }
+        button {
+            padding: 12px 24px; font-size: 16px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; color: white; transition: background 0.2s, transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+        .btn-silence { background-color: #2ecc71; }
+        .btn-silence:hover { background-color: #27ae60; }
+        .btn-confess { background-color: #e74c3c; }
+        .btn-confess:hover { background-color: #c0392b; }
+        .btn-reset { background-color: #95a5a6; padding: 8px 16px; font-size: 14px; }
+        .btn-reset:hover { background-color: #7f8c8d; }
+
+        /* 分數與歷史紀錄 */
+        .dashboard { display: flex; gap: 20px; }
+        .score-board { flex: 1; background: #2c3e50; color: white; padding: 15px; border-radius: 8px; text-align: center; }
+        .score-board h3 { margin: 0 0 10px 0; font-size: 16px; color: #ecf0f1; }
+        .score-display { font-size: 24px; font-weight: bold; display: flex; justify-content: space-around; }
+        .score-display div { display: flex; flex-direction: column; align-items: center; }
+        .score-label { font-size: 12px; color: #bdc3c7; font-weight: normal; }
+        
+        .history { flex: 1; background: #ecf0f1; padding: 15px; border-radius: 8px; font-size: 13px; max-height: 120px; overflow-y: auto; }
+        .history h4 { margin: 0 0 10px 0; color: #34495e; }
+        .log-entry { padding: 4px 0; border-bottom: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🤝 囚徒困境互動模擬</h2>
+    <div class="intro">非零和遊戲 (Non-Zero Sum Game)：目標是讓自己的<b>累計刑期越低越好</b>。<br>試著觀察不同策略組合下，雙方最終的下場！</div>
+
+    <table>
+        <tr>
+            <th colspan="2" rowspan="2">收益矩陣<br><span style="font-size:12px; font-weight:normal;">(你的刑期, 對手刑期)</span></th>
+            <th colspan="2" class="opp-header">對手 (Opponent)</th>
+        </tr>
+        <tr>
+            <th class="opp-header">保持沉默 (Cooperate)</th>
+            <th class="opp-header">坦白交代 (Defect)</th>
+        </tr>
+        <tr>
+            <th rowspan="2" class="you-header">你<br>(You)</th>
+            <th class="you-header">保持沉默<br>(Cooperate)</th>
+            <td id="cell-CC" class="payoff">(1 年, 1 年)</td>
+            <td id="cell-CD" class="payoff">(10 年, 0 年)</td>
+        </tr>
+        <tr>
+            <th class="you-header">坦白交代<br>(Defect)</th>
+            <td id="cell-DC" class="payoff">(0 年, 10 年)</td>
+            <td id="cell-DD" class="payoff">(5 年, 5 年)</td>
+        </tr>
+    </table>
+
+    <div class="controls">
+        <div class="strategy-selector">
+            <label for="opp-strategy"><b>🤖 設定對手的決策邏輯：</b></label>
+            <select id="opp-strategy" onchange="resetGame()">
+                <option value="random">隨機出牌 (Random)</option>
+                <option value="always_c">總是沉默 (傻瓜/老實人)</option>
+                <option value="always_d">總是坦白 (自私鬼)</option>
+                <option value="tft" selected>以牙還牙 (Tit-for-Tat)</option>
+            </select>
+        </div>
+        
+        <div style="text-align: center; margin-bottom: -5px; font-weight: bold; color: #34495e;">請選擇你的行動：</div>
+        <div class="action-btns">
+            <button class="btn-silence" onclick="playRound('C')">😶 保持沉默 (合作)</button>
+            <button class="btn-confess" onclick="playRound('D')">🗣️ 坦白交代 (背叛)</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="score-board">
+            <h3>累計刑期 (越低越好)</h3>
+            <div class="score-display">
+                <div><span id="you-score">0</span><span class="score-label">你 (You)</span></div>
+                <div><span id="opp-score">0</span><span class="score-label">對手 (Opp)</span></div>
+            </div>
+            <div style="margin-top: 10px;">
+                <button class="btn-reset" onclick="resetGame()">重新計算</button>
+            </div>
+        </div>
+        <div class="history">
+            <h4>📜 歷史紀錄 (回合: <span id="round-counter">0</span>)</h4>
+            <div id="log-container"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let youTotal = 0;
+    let oppTotal = 0;
+    let round = 0;
+    let yourLastAction = null;
+
+    function getOpponentAction(strategy) {
+        if (strategy === 'always_c') return 'C';
+        if (strategy === 'always_d') return 'D';
+        if (strategy === 'random') return Math.random() < 0.5 ? 'C' : 'D';
+        if (strategy === 'tft') {
+            // 著名的以牙還牙策略：第一局釋出善意(C)，之後模仿你上一局的動作
+            return yourLastAction === null ? 'C' : yourLastAction;
+        }
+        return 'C';
+    }
+
+    function playRound(yourAction) {
+        const strategy = document.getElementById('opp-strategy').value;
+        const oppAction = getOpponentAction(strategy);
+        
+        let youPenalty = 0;
+        let oppPenalty = 0;
+        let cellId = '';
+
+        // 判定收益邏輯
+        if (yourAction === 'C' && oppAction === 'C') {
+            youPenalty = 1; oppPenalty = 1; cellId = 'cell-CC';
+        } else if (yourAction === 'C' && oppAction === 'D') {
+            youPenalty = 10; oppPenalty = 0; cellId = 'cell-CD';
+        } else if (yourAction === 'D' && oppAction === 'C') {
+            youPenalty = 0; oppPenalty = 10; cellId = 'cell-DC';
+        } else if (yourAction === 'D' && oppAction === 'D') {
+            youPenalty = 5; oppPenalty = 5; cellId = 'cell-DD';
+        }
+
+        // 更新分數與狀態
+        youTotal += youPenalty;
+        oppTotal += oppPenalty;
+        round++;
+        yourLastAction = yourAction;
+
+        // 更新 UI
+        document.getElementById('you-score').innerText = youTotal;
+        document.getElementById('opp-score').innerText = oppTotal;
+        document.getElementById('round-counter').innerText = round;
+
+        // 清除舊高亮，加上新高亮
+        document.querySelectorAll('td').forEach(td => td.classList.remove('highlight-cell'));
+        document.getElementById(cellId).classList.add('highlight-cell');
+
+        // 寫入歷史紀錄
+        const logContainer = document.getElementById('log-container');
+        const actName = { 'C': '沉默', 'D': '坦白' };
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry';
+        logEntry.innerHTML = `回合 ${round}: 你 [${actName[yourAction]}] vs 對手 [${actName[oppAction]}] ➡️ 刑期 +${youPenalty}/+${oppPenalty}`;
+        logContainer.prepend(logEntry); // 最新紀錄放最上面
+    }
+
+    function resetGame() {
+        youTotal = 0; oppTotal = 0; round = 0; yourLastAction = null;
+        document.getElementById('you-score').innerText = '0';
+        document.getElementById('opp-score').innerText = '0';
+        document.getElementById('round-counter').innerText = '0';
+        document.getElementById('log-container').innerHTML = '';
+        document.querySelectorAll('td').forEach(td => td.classList.remove('highlight-cell'));
+    }
+</script>
+
+</body>
+</html>
