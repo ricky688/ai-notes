@@ -3,80 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>期望值與公平遊戲 (Expected Value)</title>
+    <title>期望值與公平遊戲視覺化工具 (Expected Value & Fair Game)</title>
     <style>
-        body { font-family: -apple-system, sans-serif; padding: 20px; background: #f9f9f9; text-align: center; color: #333; }
-        .container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-        .input-group { margin: 15px 0; display: flex; justify-content: space-between; align-items: center; }
-        input[type="number"] { width: 80px; padding: 5px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
-        input[type="range"] { width: 60%; }
-        .result-box { margin-top: 20px; padding: 15px; border-radius: 8px; font-size: 24px; font-weight: bold; background: #eee; transition: background 0.3s; }
-        .fair { background: #2ecc71; color: white; }
-        .unfair-pos { background: #3498db; color: white; }
-        .unfair-neg { background: #e74c3c; color: white; }
-        .status-text { font-size: 16px; margin-top: 5px; font-weight: normal; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .main-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+            max-width: 650px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        h2 { text-align: center; color: #2c3e50; margin-top: 0; margin-bottom: 10px; }
+
+        /* 控制面板樣式 */
+        .controls {
+            background: #fdfbf7;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 1px solid #e1d8c1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 13px; color: #7f8c8d; font-weight: bold; }
+        input[type="number"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; text-align: center; }
+        
+        .slider-group { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 5px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .prob-labels { display: flex; justify-content: space-between; font-size: 12px; color: #7f8c8d; }
+
+        /* 視覺顯示樣式 (關鍵部分) */
+        .visual-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
+
+        /* 頂部橫幅 (公平/有利/不利) */
+        .status-banner {
+            width: 100%;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        .status-fair { background-color: #2ecc71; color: white; }
+        .status-pos { background-color: #3498db; color: white; }
+        .status-neg { background-color: #e74c3c; color: white; }
+
+        /* 中央數值顯示 */
+        .ev-display { font-size: 32px; font-weight: bold; color: #555; margin: 10px 0; }
+
+        /* 底部水平軸與指標 */
+        .scale-container {
+            width: 100%;
+            height: 50px;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .scale-bar {
+            width: 100%;
+            height: 10px;
+            background: linear-gradient(to right, #e74c3c 0%, #ecf0f1 50%, #3498db 100%);
+            border-radius: 5px;
+            position: absolute;
+            top: 20px;
+        }
+
+        .scale-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            position: absolute;
+            white-space: nowrap;
+        }
+        .label-neg { left: 0; }
+        .label-center { left: 50%; transform: translateX(-50%); }
+        .label-pos { right: 0; }
+        .tick-label { top: 32px; font-size: 11px; }
+
+        /* 指標 (三角箭頭) */
+        .pointer {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 20px solid #2c3e50; /* 指標顏色 */
+            position: absolute;
+            top: -2px; /* 指向刻度下方 */
+            transform: translateX(-50%);
+            transition: left 0.3s ease;
+        }
+
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>⚖️ 期望值計算器</h2>
+<div class="main-container">
+    <h2>⚖️ 期望值與公平遊戲視覺化工具</h2>
     
-    <div class="input-group">
-        <label>結果 A 的收益 (贏):</label>
-        <input type="number" id="payoffA" value="100" oninput="calculate()">
-    </div>
-    
-    <div class="input-group">
-        <label>結果 B 的收益 (輸):</label>
-        <input type="number" id="payoffB" value="-100" oninput="calculate()">
+    <div class="controls">
+        <div class="input-group">
+            <label>贏 (Win) 的收益 A：</label>
+            <input type="number" id="payoffWin" value="10" oninput="updateExpectedValue()">
+        </div>
+        <div class="input-group">
+            <label>輸 (Loss) 的收益 B：</label>
+            <input type="number" id="payoffLoss" value="-10" oninput="updateExpectedValue()">
+        </div>
+        <div class="slider-group">
+            <label>贏的機率 (Probability of Winning) (p)：</label>
+            <input type="range" id="probWinSlider" min="0" max="100" value="50" oninput="updateExpectedValue()">
+            <div class="prob-labels">
+                <span>0%</span>
+                <span>(p = <span id="probWinLabel">50</span>%)</span>
+                <span>100%</span>
+            </div>
+            <small style="text-align: right; color: #7f8c8d; font-size: 11px; margin-top: 2px;">自動輸的機率 (1-p) = <span id="probLossLabel">50</span>%</small>
+        </div>
     </div>
 
-    <div class="input-group" style="flex-direction: column; align-items: stretch;">
-        <label style="text-align: left; margin-bottom: 5px;">
-            結果 A 發生的機率: <span id="probLabel">50%</span>
-        </label>
-        <input type="range" id="probA" min="0" max="100" value="50" oninput="calculate()">
-        <small style="text-align: left; color: #777;">(結果 B 的機率會自動設為 <span id="probBLabel">50%</span>)</small>
-    </div>
+    <div class="visual-display">
+        <div id="statusBanner" class="status-banner status-fair">⚖️ 這是一個公平遊戲 (Fair Game)！</div>
 
-    <div id="resultBox" class="result-box fair">
-        期望值 (E) = <span id="expectedValue">0</span>
-        <div id="statusText" class="status-text">這是一個公平遊戲 (Fair Game)！</div>
+        <div id="evDisplay" class="ev-display">期望值 (E) = 0.00</div>
+
+        <div class="scale-container">
+            <div class="scale-label label-neg" style="top: 0;">負期望值 (Unfavorable)</div>
+            <div class="scale-label label-center" style="top: 0;">0</div>
+            <div class="scale-label label-pos" style="top: 0;">正期望值 (Favorable)</div>
+            
+            <div class="scale-bar"></div>
+            <div id="pointer" class="pointer" style="left: 50%;"></div>
+            
+            <div class="scale-label label-center tick-label" style="left: 0;">-10</div>
+            <div class="scale-label label-center tick-label" style="left: 25%;">-5</div>
+            <div class="scale-label label-center tick-label" style="left: 50%;">0</div>
+            <div class="scale-label label-center tick-label" style="left: 75%;">+5</div>
+            <div class="scale-label label-center tick-label" style="left: 100%;">+10</div>
+        </div>
     </div>
 </div>
 
 <script>
-    function calculate() {
-        let pA = parseFloat(document.getElementById('probA').value) / 100;
-        let pB = 1 - pA;
-        let sA = parseFloat(document.getElementById('payoffA').value) || 0;
-        let sB = parseFloat(document.getElementById('payoffB').value) || 0;
+    function updateExpectedValue() {
+        const pA = parseFloat(document.getElementById('probWinSlider').value) / 100;
+        const pB = 1 - pA;
+        const sA = parseFloat(document.getElementById('payoffWin').value) || 0;
+        const sB = parseFloat(document.getElementById('payoffLoss').value) || 0;
 
-        document.getElementById('probLabel').innerText = (pA * 100).toFixed(0) + "%";
-        document.getElementById('probBLabel').innerText = (pB * 100).toFixed(0) + "%";
+        // 更新機率標籤
+        document.getElementById('probWinLabel').innerText = (pA * 100).toFixed(0);
+        document.getElementById('probLossLabel').innerText = (pB * 100).toFixed(0);
 
-        let expectedValue = (pA * sA) + (pB * sB);
-        let evRounded = expectedValue.toFixed(2);
+        // 計算期望值
+        const expectedValue = (pA * sA) + (pB * sB);
+        const evRounded = expectedValue.toFixed(2);
         
-        let resultBox = document.getElementById('resultBox');
-        let statusText = document.getElementById('statusText');
-        document.getElementById('expectedValue').innerText = evRounded;
+        // 更新 UI 元素
+        document.getElementById('evDisplay').innerText = `期望值 (E) = ${evRounded}`;
+        
+        const statusBanner = document.getElementById('statusBanner');
+        statusBanner.className = "status-banner"; // Reset
 
-        resultBox.className = "result-box"; // Reset
+        const pointer = document.getElementById('pointer');
 
         if (expectedValue === 0) {
-            resultBox.classList.add("fair");
-            statusText.innerText = "這是一個公平遊戲 (Fair Game)！";
+            statusBanner.classList.add("status-fair");
+            statusBanner.innerText = "⚖️ 這是一個公平遊戲 (Fair Game)！";
         } else if (expectedValue > 0) {
-            resultBox.classList.add("unfair-pos");
-            statusText.innerText = "這對玩家有利 (長期下來會賺錢)";
+            statusBanner.classList.add("status-pos");
+            statusBanner.innerText = "📈 這對玩家有利 (Favorable)";
         } else {
-            resultBox.classList.add("unfair-neg");
-            statusText.innerText = "這對玩家不利 (長期下來會賠錢)";
+            statusBanner.classList.add("status-neg");
+            statusBanner.innerText = "📉 這對玩家不利 (Unfavorable)";
         }
+
+        // --- 視覺映射：將 E 映射到指標的 Left 位置 ---
+        // 假設軸的範圍是 -10 到 +10
+        const minE = -10;
+        const maxE = 10;
+        let pPos = 0;
+
+        // 鉗制 E 在 (-10, 10) 之間進行映射，若超出範圍則指標留在邊緣
+        const clampedE = Math.max(minE, Math.min(maxE, expectedValue));
+
+        // 計算映射百分比：(clampedE - minE) / (maxE - minE)
+        pPos = (clampedE - minE) / (maxE - minE) * 100;
+        pointer.style.left = `${pPos}%`;
     }
-    calculate(); // Initial run
+
+    // 初始化呼叫一次
+    updateExpectedValue();
 </script>
 
 </body>
