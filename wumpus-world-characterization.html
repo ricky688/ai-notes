@@ -1,0 +1,98 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wumpus World Characterization</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #faf8f5; }
+        h1 { color: #2c3e50; text-align: center; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-bottom: 30px; }
+        h2 { color: #2980b9; border-left: 4px solid #3498db; padding-left: 10px; margin-top: 20px; }
+        .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 20px auto; background-color: #2c3e50; padding: 5px; border-radius: 8px; max-width: 500px;}
+        .grid-item { background-color: #fff; border: 1px solid #ccc; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-size: 0.9em; padding: 5px; font-weight: bold; border-radius: 4px;}
+        .agent { color: #27ae60; border: 2px solid #27ae60;}
+        .wumpus { color: #e74c3c; border: 2px solid #e74c3c;}
+        .pit { background-color: #000; color: #fff; }
+        .gold { background-color: #f1c40f; color: #000; border: 2px solid #f39c12;}
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #eee; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; color: #2c3e50; font-weight: bold; }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <h1>怪物世界特徵 (Wumpus World Characterization)</h1>
+    
+    <div class="card">
+        <h2>環境規則 (Environment Rules)</h2>
+        <ul>
+            <li><strong>臭氣 (Stench):</strong> 鄰近怪物 (Wumpus) 的方格會有臭氣。</li>
+            <li><strong>微風 (Breeze):</strong> 鄰近坑洞 (Pit) 的方格會有微風。</li>
+            <li><strong>閃光 (Glitter):</strong> 當黃金 (Gold) 與代理人在同一方格時會發出閃光 (若且唯若 iff)。</li>
+            <li><strong>射擊 (Shooting):</strong> 面對怪物射擊可以殺死它，但只會消耗唯一的一支箭。</li>
+            <li><strong>抓取 (Grabbing):</strong> 在同一方格可撿起黃金。</li>
+            <li><strong>釋放 (Releasing):</strong> 在同一方格可放下黃金。</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>代理人設定 (Agent Specifications)</h2>
+        <ul>
+            <li><strong>感測器 (Sensors):</strong> 微風 (Breeze), 閃光 (Glitter), 氣味 (Smell)</li>
+            <li><strong>作動器 (Actuators):</strong> 左轉 (Left turn), 右轉 (Right turn), 前進 (Forward), 抓取 (Grab), 釋放 (Release), 射擊 (Shoot)</li>
+            <li><strong>效能指標 (Performance Measure):</strong> 
+                <ul>
+                    <li><strong>目標 (Goal):</strong> 撿起黃金並返回起點</li>
+                    <li>獲得黃金：+1000 分</li>
+                    <li>死亡：-1000 分</li>
+                    <li>每走一步：-1 分</li>
+                    <li>使用箭：-10 分</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>PEAS 描述 (PEAS Description)</h2>
+        <table>
+            <tr><th>特徵</th><th>屬性</th><th>說明</th></tr>
+            <tr><td><strong>可觀察性 (Observable)</strong></td><td>否 (No)</td><td>只有局部感知 (local perception)</td></tr>
+            <tr><td><strong>決定性 (Deterministic)</strong></td><td>是 (Yes)</td><td>結果被精確指定 (outcomes exactly specified)</td></tr>
+            <tr><td><strong>情節性 (Episodic)</strong></td><td>否 (No)</td><td>在行動層次上是連續的 (sequential at the level of actions)</td></tr>
+            <tr><td><strong>靜態性 (Static)</strong></td><td>是 (Yes)</td><td>怪物和坑洞不會移動 (wumpus and pits do not move)</td></tr>
+            <tr><td><strong>離散性 (Discrete)</strong></td><td>是 (Yes)</td><td>狀態和時間是離散的</td></tr>
+            <tr><td><strong>單一代理人 (Single-agent)</strong></td><td>是 (Yes)</td><td>怪物本質上是自然特徵 (wumpus is essentially a natural feature)</td></tr>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>怪物世界地圖範例 (Map of the Wumpus World)</h2>
+        <div class="grid-container">
+            <!-- Row 4 -->
+            <div class="grid-item">Stench</div>
+            <div class="grid-item"></div>
+            <div class="grid-item">Breeze</div>
+            <div class="grid-item pit">PIT</div>
+            <!-- Row 3 -->
+            <div class="grid-item wumpus">Wumpus<br>Stench</div>
+            <div class="grid-item gold">Breeze<br>Stench<br>Gold</div>
+            <div class="grid-item pit">PIT</div>
+            <div class="grid-item">Breeze</div>
+            <!-- Row 2 -->
+            <div class="grid-item">Stench</div>
+            <div class="grid-item"></div>
+            <div class="grid-item">Breeze</div>
+            <div class="grid-item"></div>
+            <!-- Row 1 -->
+            <div class="grid-item agent">Agent<br>Start</div>
+            <div class="grid-item">Breeze</div>
+            <div class="grid-item pit">PIT</div>
+            <div class="grid-item">Breeze</div>
+        </div>
+        <p style="font-size: 0.85em; text-align: center; color: #7f8c8d;">註：此為代理人未知 (unknown to the agent) 的環境地圖配置。</p>
+    </div>
+</body>
+</html>
