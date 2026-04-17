@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wumpus World Logic Step-by-Step</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            display: flex;
+            gap: 30px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            max-width: 900px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 80px);
+            grid-template-rows: repeat(4, 80px);
+            gap: 4px;
+            background-color: #2c3e50;
+            padding: 4px;
+            border-radius: 5px;
+        }
+        .cell {
+            background-color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            font-weight: bold;
+            position: relative;
+            transition: all 0.3s;
+        }
+        .coord {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 10px;
+            color: #7f8c8d;
+        }
+        .agent { border: 3px solid #2ecc71; background-color: #e8f8f5; }
+        .safe { background-color: #a9dfbf; color: #196f3d; }
+        .pit-maybe { background-color: #f5b041; color: #7e5109; }
+        .unknown { background-color: #d5d8dc; color: #7f8c8d; }
+        
+        .panel {
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+        .controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        button:hover:not(:disabled) { background-color: #2980b9; }
+        
+        .explanation {
+            flex-grow: 1;
+            background: #fdfefe;
+            border: 1px solid #d0d3d4;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .kb-box {
+            background: #eaecee;
+            padding: 10px;
+            margin-top: 10px;
+            border-left: 4px solid #34495e;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div>
+            <h3 style="text-align: center; margin-top: 0;">環境視圖 (World View)</h3>
+            <div class="grid" id="grid">
+                <div class="cell unknown" id="c14"><span class="coord">1,4</span></div>
+                <div class="cell unknown" id="c24"><span class="coord">2,4</span></div>
+                <div class="cell unknown" id="c34"><span class="coord">3,4</span></div>
+                <div class="cell unknown" id="c44"><span class="coord">4,4</span></div>
+                <div class="cell unknown" id="c13"><span class="coord">1,3</span></div>
+                <div class="cell unknown" id="c23"><span class="coord">2,3</span></div>
+                <div class="cell unknown" id="c33"><span class="coord">3,3</span></div>
+                <div class="cell unknown" id="c43"><span class="coord">4,3</span></div>
+                <div class="cell unknown" id="c12">?<span class="coord">1,2</span></div>
+                <div class="cell unknown" id="c22">?<span class="coord">2,2</span></div>
+                <div class="cell unknown" id="c32"><span class="coord">3,2</span></div>
+                <div class="cell unknown" id="c42"><span class="coord">4,2</span></div>
+                <div class="cell safe agent" id="c11">🧍 Agent<span class="coord">1,1</span></div>
+                <div class="cell unknown" id="c21">?<span class="coord">2,1</span></div>
+                <div class="cell unknown" id="c31">?<span class="coord">3,1</span></div>
+                <div class="cell unknown" id="c41"><span class="coord">4,1</span></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="controls">
+                <button id="btnPrev" onclick="changeStep(-1)" disabled>上一步 (Prev)</button>
+                <button id="btnNext" onclick="changeStep(1)">下一步 (Next)</button>
+            </div>
+            <div class="explanation" id="explanation">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        const steps = [
+            {
+                title: "步驟 0: 符號定義 (Definitions)",
+                desc: "在邏輯代理人中，我們使用命題符號來表示世界：<br>• <b>P<sub>i,j</sub></b>：表示方格 [i,j] 有坑洞 (Pit)。<br>• <b>B<sub>i,j</sub></b>：表示方格 [i,j] 有微風 (Breeze)。",
+                kb: "目前知識庫 (KB): 空",
+                cells: {}
+            },
+            {
+                title: "步驟 1: 初始狀態 (Initial State)",
+                desc: "代理人從 [1,1] 出發。該格子沒有坑洞，也沒有感覺到微風。<br>因此，我們將這些感知事實加入知識庫。",
+                kb: "KB 增加:<br>1. &not;P<sub>1,1</sub> (起點無洞)<br>2. &not;B<sub>1,1</sub> (無微風)",
+                cells: { "c11": "safe agent", "c12": "unknown", "c21": "unknown" }
+            },
+            {
+                title: "步驟 2: 環境規則 (Environment Rule 1)",
+                desc: "世界運行規則：一個方格有微風，若且唯若 (iff) 其相鄰方格有坑洞。<br>對於 [1,1] 來說，相鄰的是 [1,2] 和 [2,1]。",
+                kb: "KB 增加規則:<br>3. B<sub>1,1</sub> &hArr; (P<sub>1,2</sub> &or; P<sub>2,1</sub>)",
+                cells: { "c11": "safe agent", "c12": "unknown", "c21": "unknown" }
+            },
+            {
+                title: "步驟 3: 邏輯推導 (Logical Inference)",
+                desc: "結合知識庫的 2 和 3：因為 &not;B<sub>1,1</sub> 為真，所以 (P<sub>1,2</sub> &or; P<sub>2,1</sub>) 必須為假。<br>根據德摩根定律，得出 &not;P<sub>1,2</sub> &and; &not;P<sub>2,1</sub>。<br><b>結論：[1,2] 和 [2,1] 是安全的！</b>",
+                kb: "KB 推導得出:<br>4. &not;P<sub>1,2</sub><br>5. &not;P<sub>2,1</sub>",
+                cells: { "c11": "safe agent", "c12": "safe", "c21": "safe" }
+            },
+            {
+                title: "步驟 4: 移動與新感知 (Move and Perceive)",
+                desc: "代理人移動到 [2,1]，並在那裡感受到了微風 (Breeze)！",
+                kb: "KB 增加事實:<br>6. B<sub>2,1</sub>",
+                cells: { "c11": "safe", "c12": "safe", "c21": "safe agent", "c22": "unknown", "c31": "unknown" }
+            },
+            {
+                title: "步驟 5: 環境規則 (Environment Rule 2)",
+                desc: "我們為 [2,1] 寫下微風的環境規則。[2,1] 的相鄰格子是 [1,1]、[2,2] 和 [3,1]。",
+                kb: "KB 增加規則:<br>7. B<sub>2,1</sub> &hArr; (P<sub>1,1</sub> &or; P<sub>2,2</sub> &or; P<sub>3,1</sub>)",
+                cells: { "c11": "safe", "c12": "safe", "c21": "safe agent", "c22": "unknown", "c31": "unknown" }
+            },
+            {
+                title: "步驟 6: 尋找坑洞 (Locating the Pit)",
+                desc: "因為 B<sub>2,1</sub> 為真，所以 (P<sub>1,1</sub> &or; P<sub>2,2</sub> &or; P<sub>3,1</sub>) 必須為真。<br>又因為 KB 已知 &not;P<sub>1,1</sub>，所以必定是 <b>P<sub>2,2</sub> &or; P<sub>3,1</sub></b> 為真。<br><b>結論：坑洞在 [2,2] 或 [3,1] 其中之一。</b>",
+                kb: "KB 推導得出:<br>8. (P<sub>2,2</sub> &or; P<sub>3,1</sub>)",
+                cells: { "c11": "safe", "c12": "safe", "c21": "safe agent", "c22": "pit-maybe", "c31": "pit-maybe" }
+            },
+            {
+                title: "步驟 7: 回答詢問 (Answering the Query)",
+                desc: "教材中的問題：<b>&alpha;<sub>1</sub> = &not;P<sub>1,2</sub>，請問 KB &models; &alpha;<sub>1</sub> 嗎？</b><br><br>回顧步驟 3，知識庫已經推導出 &not;P<sub>1,2</sub> 為真。<br>因此，無論坑洞在哪，[1,2] 絕對安全。",
+                kb: "最終結論:<br>KB &models; &alpha;<sub>1</sub> 是 成立 (True) 的！",
+                cells: { "c11": "safe", "c12": "safe agent", "c21": "safe", "c22": "pit-maybe", "c31": "pit-maybe" }
+            }
+        ];
+
+        let currentStep = 0;
+
+        function updateUI() {
+            const step = steps[currentStep];
+            
+            // Update Explanation
+            document.getElementById('explanation').innerHTML = `
+                <h4 style="margin-top: 0; color: #2980b9;">${step.title}</h4>
+                <p>${step.desc}</p>
+                <div class="kb-box">${step.kb}</div>
+            `;
+
+            // Reset Grid
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.className = 'cell unknown';
+                if(cell.id === "c12" || cell.id === "c21" || cell.id === "c22" || cell.id === "c31") {
+                    cell.innerHTML = `?<span class="coord">${cell.id.charAt(1)},${cell.id.charAt(2)}</span>`;
+                } else if (cell.id === "c11") {
+                    cell.innerHTML = `🧍<span class="coord">1,1</span>`;
+                } else {
+                    cell.innerHTML = `<span class="coord">${cell.id.charAt(1)},${cell.id.charAt(2)}</span>`;
+                }
+            });
+
+            // Apply State Classes
+            for (const [id, state] of Object.entries(step.cells)) {
+                const el = document.getElementById(id);
+                el.className = `cell ${state}`;
+                
+                if (state.includes('agent')) el.innerHTML = `🧍 Agent<span class="coord">${id.charAt(1)},${id.charAt(2)}</span>`;
+                else if (state.includes('safe')) el.innerHTML = `✅ Safe<span class="coord">${id.charAt(1)},${id.charAt(2)}</span>`;
+                else if (state.includes('pit-maybe')) el.innerHTML = `⚠️ 坑洞?<span class="coord">${id.charAt(1)},${id.charAt(2)}</span>`;
+            }
+
+            // Update Buttons
+            document.getElementById('btnPrev').disabled = currentStep === 0;
+            document.getElementById('btnNext').disabled = currentStep === steps.length - 1;
+        }
+
+        function changeStep(delta) {
+            currentStep += delta;
+            updateUI();
+        }
+
+        // Initialize
+        updateUI();
+    </script>
+</body>
+</html>
