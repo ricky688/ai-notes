@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resolving Conflict via Coloring</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #header {
+            padding: 15px 20px;
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            color: #2c3e50;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            font-size: 0.9rem;
+            color: #555;
+            font-weight: bold;
+        }
+        #mynetwork {
+            flex-grow: 1;
+            width: 100%;
+            border: none;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h2>透過著色解決衝突 (Resolving Conflict via Coloring)</h2>
+        <div class="controls">
+            <button id="stepBtn" onclick="nextStep()">下一步著色 (Next Step)</button>
+            <button id="resetBtn" onclick="resetGraph()" style="background-color: #f44336;">重置 (Reset)</button>
+            <span id="status">點擊「下一步」開始為頂點 (Vertices) 著色。相鄰的頂點不能同色！</span>
+        </div>
+    </div>
+
+    <div id="mynetwork"></div>
+
+    <div class="legend">
+        <strong>規則 (Rules):</strong><br>
+        1. 頂點 (Vertex) 代表任務/科目。<br>
+        2. 邊 (Edge) 代表衝突 (Conflict)。<br>
+        3. 相鄰頂點必須不同色。<br>
+        4. 目標是找出最少顏色數，即色數 (Chromatic Number)。
+    </div>
+
+    <script type="text/javascript">
+        // 定義可用的顏色池 (Color Pool)
+        const palette = ["#FF5722", "#2196F3", "#4CAF50", "#FFC107", "#9C27B0", "#00BCD4"];
+        const defaultColor = "#E0E0E0";
+
+        // 初始節點 (Vertices) 和邊 (Edges) 的設定
+        let nodesArray = [
+            { id: 1, label: '科目 A (Math)', color: defaultColor },
+            { id: 2, label: '科目 B (English)', color: defaultColor },
+            { id: 3, label: '科目 C (History)', color: defaultColor },
+            { id: 4, label: '科目 D (Physics)', color: defaultColor },
+            { id: 5, label: '科目 E (Art)', color: defaultColor },
+            { id: 6, label: '科目 F (Chem)', color: defaultColor }
+        ];
+
+        // 定義衝突 (邊 Edges) - 模擬哪些科目有相同學生而不能同時考
+        let edgesArray = [
+            { from: 1, to: 2 },
+            { from: 1, to: 3 },
+            { from: 2, to: 3 },
+            { from: 2, to: 4 },
+            { from: 3, to: 5 },
+            { from: 4, to: 5 },
+            { from: 4, to: 6 },
+            { from: 5, to: 6 }
+        ];
+
+        let nodes = new vis.DataSet(nodesArray);
+        let edges = new vis.DataSet(edgesArray);
+        let network = null;
+        let currentStep = 0;
+
+        function draw() {
+            let container = document.getElementById('mynetwork');
+            let data = { nodes: nodes, edges: edges };
+            let options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 25,
+                    font: { size: 14, color: '#333' },
+                    borderWidth: 2
+                },
+                edges: {
+                    width: 2,
+                    color: { color: '#999' }
+                },
+                physics: {
+                    stabilization: false,
+                    barnesHut: { springLength: 150 }
+                }
+            };
+            network = new vis.Network(container, data, options);
+        }
+
+        function getNeighborColors(nodeId) {
+            let neighborIds = network.getConnectedNodes(nodeId);
+            let neighborColors = new Set();
+            neighborIds.forEach(id => {
+                let n = nodes.get(id);
+                if (n.color !== defaultColor) {
+                    neighborColors.add(n.color);
+                }
+            });
+            return neighborColors;
+        }
+
+        function nextStep() {
+            if (currentStep >= nodesArray.length) return;
+
+            let nodeId = nodesArray[currentStep].id;
+            let usedColors = getNeighborColors(nodeId);
+            
+            // 貪婪演算法：找出第一個沒被相鄰節點使用的顏色
+            let chosenColor = defaultColor;
+            for (let i = 0; i < palette.length; i++) {
+                if (!usedColors.has(palette[i])) {
+                    chosenColor = palette[i];
+                    break;
+                }
+            }
+
+            // 更新節點顏色
+            nodes.update({ id: nodeId, color: chosenColor });
+            
+            document.getElementById('status').innerText = `已為 ${nodesArray[currentStep].label} 著色 (顏色索引: ${palette.indexOf(chosenColor) + 1})。`;
+            
+            currentStep++;
+
+            if (currentStep >= nodesArray.length) {
+                document.getElementById('stepBtn').disabled = true;
+                // 計算使用了多少種顏色 (Chromatic Number 估算)
+                let uniqueColors = new Set();
+                nodes.get().forEach(n => uniqueColors.add(n.color));
+                document.getElementById('status').innerText = `著色完成！共使用了 ${uniqueColors.size} 種顏色 (色數 Chromatic Number 至少為 ${uniqueColors.size})。`;
+            }
+        }
+
+        function resetGraph() {
+            currentStep = 0;
+            nodes.update(nodesArray.map(n => ({ id: n.id, color: defaultColor })));
+            document.getElementById('stepBtn').disabled = false;
+            document.getElementById('status').innerText = "圖形已重置。點擊「下一步」開始著色。";
+        }
+
+        window.onload = draw;
+    </script>
+</body>
+</html>
