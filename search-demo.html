@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Problem Solving by Searching (With Goal Test)</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        select, button {
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button { background-color: #007bff; color: white; border: none; transition: background 0.3s; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        #canvas-container {
+            position: relative;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        canvas { border: 1px solid #eee; }
+        
+        .info-panel {
+            width: 600px;
+            background: white;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-line { margin: 5px 0; font-size: 14px; }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: white;
+            margin-right: 5px;
+        }
+        .badge-current { background-color: #ffc107; color: black; }
+        .badge-frontier { background-color: #17a2b8; }
+        .badge-visited { background-color: #28a745; }
+        .badge-goal { background-color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <label for="algoSelect">選擇演算法 (Algorithm):</label>
+        <select id="algoSelect">
+            <option value="bfs">Breadth-first search (BFS)</option>
+            <option value="ucs">Uniform-cost search (UCS)</option>
+            <option value="dfs">Depth-first search (DFS)</option>
+            <option value="dls">Depth-limited search (DLS, Limit=3)</option>
+            <option value="ids">Iterative deepening search (IDS)</option>
+        </select>
+        <button id="startBtn">開始 / 重設 (Start/Reset)</button>
+        <button id="nextBtn" disabled>下一步 (Next Step)</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="graphCanvas" width="600" height="350"></canvas>
+    </div>
+
+    <div class="info-panel">
+        <div class="status-line"><strong>Goal Node (目標):</strong> <span class="badge badge-goal">G</span></div>
+        <div class="status-line"><strong>Current Node (當前):</strong> <span id="out-current">-</span></div>
+        <div class="status-line"><strong>Frontier (待處理):</strong> <span id="out-frontier">-</span></div>
+        <div class="status-line"><strong>Visited (已展開):</strong> <span id="out-visited">-</span></div>
+        <div class="status-line" id="out-msg" style="color: #dc3545; font-weight: bold; font-size: 16px; margin-top: 10px;"></div>
+    </div>
+
+    <script>
+        const tree = {
+            'A': { x: 300, y: 40, children: [{id: 'B', cost: 1}, {id: 'C', cost: 4}] },
+            'B': { x: 150, y: 130, children: [{id: 'D', cost: 2}, {id: 'E', cost: 5}] },
+            'C': { x: 450, y: 130, children: [{id: 'F', cost: 1}, {id: 'G', cost: 2}] },
+            'D': { x: 75, y: 240, children: [{id: 'H', cost: 1}, {id: 'I', cost: 3}] },
+            'E': { x: 225, y: 240, children: [] },
+            'F': { x: 375, y: 240, children: [] },
+            'G': { x: 525, y: 240, children: [] }, // GOAL NODE
+            'H': { x: 35, y: 320, children: [] },
+            'I': { x: 115, y: 320, children: [] }
+        };
+
+        const GOAL = 'G';
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d');
+        let currentGenerator = null;
+        let currentState = { current: null, frontier: [], visited: [], msg: '' };
+
+        function drawGraph(state) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.lineWidth = 2;
+            ctx.font = "12px Arial";
+            for (let id in tree) {
+                let node = tree[id];
+                node.children.forEach(child => {
+                    let childNode = tree[child.id];
+                    ctx.beginPath();
+                    ctx.moveTo(node.x, node.y);
+                    ctx.lineTo(childNode.x, childNode.y);
+                    ctx.strokeStyle = '#ccc';
+                    ctx.stroke();
+                    
+                    let midX = (node.x + childNode.x) / 2;
+                    let midY = (node.y + childNode.y) / 2;
+                    ctx.fillStyle = '#666';
+                    ctx.fillText(child.cost, midX + 10, midY);
+                });
+            }
+
+            for (let id in tree) {
+                let node = tree[id];
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 18, 0, Math.PI * 2);
+                
+                if (id === GOAL) {
+                    ctx.fillStyle = '#ffcccc'; // Goal Highlight (Light Red)
+                    ctx.strokeStyle = '#dc3545';
+                    ctx.lineWidth = 3;
+                } else {
+                    ctx.lineWidth = 1;
+                    if (state.current === id) ctx.fillStyle = '#ffc107';
+                    else if (state.visited.includes(id)) ctx.fillStyle = '#28a745';
+                    else if (state.frontier.some(f => f.id === id)) ctx.fillStyle = '#17a2b8';
+                    else ctx.fillStyle = '#fff';
+                    ctx.strokeStyle = '#333';
+                }
+                
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = "bold 14px Arial";
+                ctx.fillText(id, node.x, node.y);
+            }
+        }
+
+        function updateUI(state) {
+            drawGraph(state);
+            document.getElementById('out-current').innerHTML = state.current ? `<span class="badge badge-current">${state.current}</span>` : '-';
+            
+            let frontierStr = state.frontier.map(f => {
+                let text = f.id;
+                if(f.cost !== undefined) text += `(c:${f.cost})`;
+                if(f.depth !== undefined) text += `(d:${f.depth})`;
+                return `<span class="badge badge-frontier">${text}</span>`;
+            }).join('');
+            document.getElementById('out-frontier').innerHTML = frontierStr || '-';
+            document.getElementById('out-visited').innerHTML = state.visited.map(v => `<span class="badge badge-visited">${v}</span>`).join('');
+            document.getElementById('out-msg').innerText = state.msg || '';
+        }
+
+        // --- Generators with Goal Test ---
+
+        function* bfs() {
+            let frontier = [{id: 'A'}];
+            let visited = [];
+            while(frontier.length > 0) {
+                let current = frontier.shift();
+                
+                if(!visited.includes(current.id)) {
+                    visited.push(current.id);
+                    yield { current: current.id, frontier: [...frontier], visited: [...visited] };
+                    
+                    // Goal Test (目標測試)
+                    if(current.id === GOAL) {
+                        yield { current: current.id, frontier: [...frontier], visited: [...visited], msg: `🎉 Goal '${GOAL}' Found by BFS!` };
+                        return;
+                    }
+
+                    for(let child of tree[current.id].children) {
+                        if(!visited.includes(child.id) && !frontier.some(f => f.id === child.id)) {
+                            frontier.push({id: child.id});
+                        }
+                    }
+                }
+            }
+            yield { current: null, frontier: [], visited, msg: 'Goal Not Found.' };
+        }
+
+        function* ucs() {
+            let frontier = [{id: 'A', cost: 0}];
+            let visited = [];
+            while(frontier.length > 0) {
+                frontier.sort((a, b) => a.cost - b.cost);
+                let current = frontier.shift();
+                
+                if(!visited.includes(current.id)) {
+                    visited.push(current.id);
+                    yield { current: current.id, frontier: [...frontier], visited: [...visited] };
+                    
+                    // UCS 的 Goal Test 必須在展開(Expansion)時進行，確保是最低成本路徑
+                    if(current.id === GOAL) {
+                        yield { current: current.id, frontier: [...frontier], visited: [...visited], msg: `🎉 Goal '${GOAL}' Found by UCS! Optimal Cost: ${current.cost}` };
+                        return;
+                    }
+
+                    for(let child of tree[current.id].children) {
+                        if(!visited.includes(child.id)) {
+                            let newCost = current.cost + child.cost;
+                            let existing = frontier.find(f => f.id === child.id);
+                            if(!existing) {
+                                frontier.push({id: child.id, cost: newCost});
+                            } else if (newCost < existing.cost) {
+                                existing.cost = newCost;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function* dfs() {
+            let frontier = [{id: 'A'}];
+            let visited = [];
+            while(frontier.length > 0) {
+                let current = frontier.pop();
+                if(!visited.includes(current.id)) {
+                    visited.push(current.id);
+                    yield { current: current.id, frontier: [...frontier], visited: [...visited] };
+                    
+                    if(current.id === GOAL) {
+                        yield { current: current.id, frontier: [...frontier], visited: [...visited], msg: `🎉 Goal '${GOAL}' Found by DFS!` };
+                        return;
+                    }
+
+                    let children = [...tree[current.id].children].reverse();
+                    for(let child of children) {
+                        if(!visited.includes(child.id)) {
+                            frontier.push({id: child.id});
+                        }
+                    }
+                }
+            }
+        }
+
+        function* dls(limit = 3) {
+            let frontier = [{id: 'A', depth: 0}];
+            let visited = [];
+            while(frontier.length > 0) {
+                let current = frontier.pop();
+                visited.push(current.id);
+                yield { current: current.id, frontier: [...frontier], visited: [...visited], msg: `Current Depth: ${current.depth}` };
+                
+                if(current.id === GOAL) {
+                    yield { current: current.id, frontier: [...frontier], visited: [...visited], msg: `🎉 Goal '${GOAL}' Found by DLS at Depth ${current.depth}!` };
+                    return true; // Return true to indicate success for IDS
+                }
+
+                if(current.depth < limit) {
+                    let children = [...tree[current.id].children].reverse();
+                    for(let child of children) {
+                        frontier.push({id: child.id, depth: current.depth + 1});
+                    }
+                } else {
+                    yield { current: current.id, frontier: [...frontier], visited: [...visited], msg: `Hit Depth Limit (${limit}) at ${current.id}` };
+                }
+            }
+            return false; // Not found within limit
+        }
+
+        function* ids() {
+            let maxLimit = 4;
+            for(let limit = 0; limit <= maxLimit; limit++) {
+                yield { current: null, frontier: [], visited: [], msg: `--- Starting DLS with Limit = ${limit} ---` };
+                
+                let frontier = [{id: 'A', depth: 0}];
+                let visitedThisIteration = [];
+                let found = false;
+
+                while(frontier.length > 0) {
+                    let current = frontier.pop();
+                    visitedThisIteration.push(current.id);
+                    yield { current: current.id, frontier: [...frontier], visited: [...visitedThisIteration], msg: `Limit: ${limit}, Depth: ${current.depth}` };
+                    
+                    if(current.id === GOAL) {
+                        yield { current: current.id, frontier: [...frontier], visited: [...visitedThisIteration], msg: `🎉 Goal '${GOAL}' Found by IDS (Limit ${limit})!` };
+                        return;
+                    }
+
+                    if(current.depth < limit) {
+                        let children = [...tree[current.id].children].reverse();
+                        for(let child of children) {
+                            frontier.push({id: child.id, depth: current.depth + 1});
+                        }
+                    }
+                }
+            }
+            yield { current: null, frontier: [], visited: [], msg: 'IDS Complete. Goal Not Found.' };
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('startBtn').addEventListener('click', () => {
+            const algo = document.getElementById('algoSelect').value;
+            switch(algo) {
+                case 'bfs': currentGenerator = bfs(); break;
+                case 'ucs': currentGenerator = ucs(); break;
+                case 'dfs': currentGenerator = dfs(); break;
+                case 'dls': currentGenerator = dls(3); break; // 增加極限至3以確保能找到G
+                case 'ids': currentGenerator = ids(); break;
+            }
+            document.getElementById('nextBtn').disabled = false;
+            currentState = { current: null, frontier: [{id: 'A'}], visited: [], msg: 'Ready to start' };
+            if(algo === 'ucs') currentState.frontier[0].cost = 0;
+            if(algo === 'dls' || algo === 'ids') currentState.frontier[0].depth = 0;
+            updateUI(currentState);
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            if(currentGenerator) {
+                const nextStep = currentGenerator.next();
+                if(!nextStep.done) {
+                    currentState = nextStep.value;
+                    updateUI(currentState);
+                } else {
+                    if(nextStep.value !== undefined && typeof nextStep.value === 'object') {
+                        currentState = nextStep.value;
+                    }
+                    if(!currentState.msg.includes('Found')) {
+                        currentState.msg += " (Search Finished)";
+                    }
+                    updateUI(currentState);
+                    document.getElementById('nextBtn').disabled = true;
+                }
+            }
+        });
+
+        drawGraph({current: null, frontier: [], visited: []});
+    </script>
+</body>
+</html>
